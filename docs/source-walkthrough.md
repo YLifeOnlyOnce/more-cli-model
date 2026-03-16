@@ -47,6 +47,7 @@ src/
 
 ```ts
 const commands: CommandDefinition[] = [
+  initCommand,
   greetCommand,
   sumCommand,
   jsonPrettyCommand,
@@ -548,6 +549,19 @@ note list
 - 它也通过 `run` 返回字符串
 
 这种统一性会让整个系统更简单。
+
+### 6. `init.ts`：多轮交互式脚手架命令
+
+这个命令展示了另一类很常见的 CLI 能力：不是一次性把所有参数写在命令后面，而是进入一个问答流程，边问边收集信息，最后再批量生成文件。
+
+它的执行思路是：
+
+1. 用 `readline/promises` 创建交互会话
+2. 依次询问项目名、输出目录、模板类型、是否生成 README / `.gitignore`
+3. 如果目标目录已存在且非空，再额外确认一次
+4. 把答案交给 `services/scaffold.ts` 统一生成模板文件
+
+这和 Vite、Create React App 一类脚手架的核心体验已经非常接近了，只是这里保留了最小实现，方便你看清楚交互和文件生成是怎么接上的。
 
 ## 第八站：把一条命令完整走一遍
 
