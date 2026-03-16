@@ -1,10 +1,10 @@
-# TypeScript CLI 学习示例
+# 各种类型的 cli 在 Typescript 的简易实现
 
 这是一个适合入门和拆解原理的 TypeScript CLI 项目。
 
-它故意不依赖 `commander`、`yargs` 这类成熟框架，而是自己实现了一个最小命令解析器。这样你既能学会如何做一个可用的 CLI，也能看见 CLI 的底层骨架到底是什么。
+特意不依赖 `commander`、`yargs` 这类成熟框架，而是自己实现了一个最小命令解析器。既能学会如何做一个可用的 CLI，也能看见 CLI 的底层骨架到底是什么。
 
-## 你会学到什么
+## 核心内容
 
 - CLI 程序从 `node` 进程启动后如何拿到命令行参数
 - 子命令、位置参数、选项参数是如何被解析的
@@ -13,7 +13,7 @@
 - TypeScript 如何编译为 Node 可执行的 JavaScript
 - `bin` 字段、shebang、`npm link` 背后的基本工作方式
 
-## 阅读顺序
+## 访问顺序
 
 1. 先看 `docs/learning-guide.md`
 2. 再看入口文件 `src/index.ts`
@@ -22,7 +22,7 @@
 5. 再看逐文件讲解 `docs/source-walkthrough.md`
 6. 最后看 `docs/principles.md`
 
-## 教学文档
+## 文档说明
 
 - `docs/learning-guide.md`：学习路径和阅读顺序
 - `docs/source-walkthrough.md`：逐文件源码讲解，适合边看边学
