@@ -19,12 +19,14 @@
 2. 再看入口文件 `src/index.ts`
 3. 然后看解析器 `src/core/parser.ts`
 4. 再分别看命令实现目录 `src/commands/`
-5. 再看逐文件讲解 `docs/source-walkthrough.md`
-6. 最后看 `docs/principles.md`
+5. 如果想学交互式脚手架，再看 `docs/interactive-init-guide.md`
+6. 再看逐文件讲解 `docs/source-walkthrough.md`
+7. 最后看 `docs/principles.md`
 
 ## 教学文档
 
 - `docs/learning-guide.md`：学习路径和阅读顺序
+- `docs/interactive-init-guide.md`：多轮交互命令的原理、流程和核心 API
 - `docs/source-walkthrough.md`：逐文件源码讲解，适合边看边学
 - `docs/principles.md`：CLI 构建原理、运行原理、底层机制
 
@@ -33,6 +35,7 @@
 ```text
 ts-cli/
   docs/
+    interactive-init-guide.md
     learning-guide.md
     source-walkthrough.md
     principles.md
@@ -40,6 +43,7 @@ ts-cli/
     commands/
       greet.ts
       help.ts
+      init.ts
       json-pretty.ts
       note.ts
       sum.ts
@@ -48,9 +52,11 @@ ts-cli/
       types.ts
     services/
       note-store.ts
+      scaffold.ts
     utils/
       format.ts
       fs.ts
+      prompt.ts
     index.ts
   package.json
   tsconfig.json
@@ -72,6 +78,7 @@ node dist/index.js sum 1 2 3 4
 node dist/index.js json package.json --indent 4
 node dist/index.js note add "学习 CLI"
 node dist/index.js note list
+node dist/index.js init
 ```
 
 ## 示例功能
@@ -109,6 +116,14 @@ node dist/index.js note add "第一条笔记"
 node dist/index.js note list
 ```
 
+### 5. `init`
+
+演示多轮交互输入、确认提示和模板文件生成。
+
+```bash
+node dist/index.js init
+```
+
 ## 学习建议
 
 - 第一轮：先跑命令，观察现象
@@ -121,5 +136,5 @@ node dist/index.js note list
 - 给 `note` 增加 `remove` 命令
 - 给 `sum` 增加 `--avg` 选项
 - 给 `json` 增加输出到文件的能力
-- 增加彩色输出与交互输入
+- 让 `init` 支持更多模板与依赖安装
 - 改造成真正发布到 npm 的 CLI
