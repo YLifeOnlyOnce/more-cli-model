@@ -53,11 +53,16 @@ ts-cli/
     services/
       note-store.ts
       scaffold.ts
+    templates/
+      registry.ts
     utils/
       format.ts
       fs.ts
       prompt.ts
     index.ts
+  templates/
+    vanilla-js/
+    vanilla-ts/
   package.json
   tsconfig.json
 ```
@@ -118,7 +123,7 @@ node dist/index.js note list
 
 ### 5. `init`
 
-演示多轮交互输入、确认提示和模板文件生成。
+演示多轮交互输入、模板注册表和目录模板复制生成。
 
 ```bash
 node dist/index.js init
@@ -136,5 +141,5 @@ node dist/index.js init
 - 给 `note` 增加 `remove` 命令
 - 给 `sum` 增加 `--avg` 选项
 - 给 `json` 增加输出到文件的能力
-- 让 `init` 支持更多模板与依赖安装
+- 给 `templates/` 继续增加 React、Vue 等模板
 - 改造成真正发布到 npm 的 CLI

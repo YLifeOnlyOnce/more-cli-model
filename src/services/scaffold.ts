@@ -2,14 +2,13 @@ import path from "node:path";
 import { access, readdir } from "node:fs/promises";
 import { constants } from "node:fs";
 
-import { writeTextFile } from "../utils/fs";
-
-export type TemplateKind = "ts" | "js";
+import { getTemplateByName, listTemplates, TemplateDefinition } from "../templates/registry";
+import { listFilesRecursively, readTextFile, writeTextFile } from "../utils/fs";
 
 export interface ScaffoldAnswers {
   projectName: string;
   targetDirectory: string;
-  template: TemplateKind;
+  templateName: string;
   includeReadme: boolean;
   includeGitignore: boolean;
 }
@@ -19,137 +18,7 @@ export interface ScaffoldResult {
   files: string[];
 }
 
-interface TemplateFile {
-  relativePath: string;
-  content: string;
-}
-
-function createPackageJson(answers: ScaffoldAnswers): string {
-  const scripts =
-    answers.template === "ts"
-      ? {
-          build: "tsc -p tsconfig.json",
-          start: "node dist/index.js"
-        }
-      : {
-          start: "node src/index.js"
-        };
-
-  return `${JSON.stringify(
-    {
-      name: answers.projectName,
-      version: "1.0.0",
-      private: true,
-      scripts
-    },
-    null,
-    2
-  )}\n`;
-}
-
-function createEntryFile(answers: ScaffoldAnswers): TemplateFile {
-  if (answers.template === "ts") {
-    return {
-      relativePath: "src/index.ts",
-      content: [
-        "interface ProjectMeta {",
-        "  name: string;",
-        "}",
-        "",
-        "const meta: ProjectMeta = {",
-        `  name: ${JSON.stringify(answers.projectName)}`,
-        "};",
-        "",
-        'console.log(`Hello from ${meta.name}!`);',
-        ""
-      ].join("\n")
-    };
-  }
-
-  return {
-    relativePath: "src/index.js",
-    content: [
-      `const projectName = ${JSON.stringify(answers.projectName)};`,
-      "",
-      'console.log(`Hello from ${projectName}!`);',
-      ""
-    ].join("\n")
-  };
-}
-
-function createTsConfig(): TemplateFile {
-  return {
-    relativePath: "tsconfig.json",
-    content: [
-      "{",
-      '  "compilerOptions": {',
-      '    "target": "ES2020",',
-      '    "module": "CommonJS",',
-      '    "moduleResolution": "Node",',
-      '    "rootDir": "src",',
-      '    "outDir": "dist",',
-      '    "strict": true,',
-      '    "esModuleInterop": true',
-      "  },",
-      '  "include": ["src"]',
-      "}",
-      ""
-    ].join("\n")
-  };
-}
-
-function createReadme(answers: ScaffoldAnswers): TemplateFile {
-  return {
-    relativePath: "README.md",
-    content: [
-      `# ${answers.projectName}`,
-      "",
-      `由 learn-cli init 生成的 ${answers.template.toUpperCase()} 模板项目。`,
-      "",
-      "## 开始使用",
-      "",
-      "```bash",
-      "npm install",
-      answers.template === "ts" ? "npm run build" : "npm start",
-      "```",
-      ""
-    ].join("\n")
-  };
-}
-
-function createGitignore(answers: ScaffoldAnswers): TemplateFile {
-  const lines = ["node_modules/"];
-  if (answers.template === "ts") {
-    lines.push("dist/");
-  }
-  lines.push("");
-
-  return {
-    relativePath: ".gitignore",
-    content: lines.join("\n")
-  };
-}
-
-function createTemplateFiles(answers: ScaffoldAnswers): TemplateFile[] {
-  const files: TemplateFile[] = [
-    { relativePath: "package.json", content: createPackageJson(answers) },
-    createEntryFile(answers)
-  ];
-
-  if (answers.template === "ts") {
-    files.push(createTsConfig());
-  }
-
-  if (answers.includeReadme) {
-    files.push(createReadme(answers));
-  }
-
-  if (answers.includeGitignore) {
-    files.push(createGitignore(answers));
-  }
-
-  return files;
-}
+const TEMPLATE_NAME_PLACEHOLDER = "__PROJECT_NAME__";
 
 export async function pathExists(targetPath: string): Promise<boolean> {
   try {
@@ -165,17 +34,63 @@ export async function isDirectoryEmpty(targetPath: string): Promise<boolean> {
   return entries.length === 0;
 }
 
+export function getAvailableTemplates(): TemplateDefinition[] {
+  return listTemplates();
+}
+
 export async function generateScaffold(answers: ScaffoldAnswers): Promise<ScaffoldResult> {
   const targetPath = path.resolve(process.cwd(), answers.targetDirectory);
-  const files = createTemplateFiles(answers);
+  const template = getTemplateByName(answers.templateName);
+  const templateRoot = getTemplateRoot(template.directoryName);
+  const templateFiles = await listFilesRecursively(templateRoot);
+  const createdFiles: string[] = [];
 
-  for (const file of files) {
-    const filePath = path.join(targetPath, file.relativePath);
-    await writeTextFile(filePath, file.content);
+  for (const relativePath of templateFiles) {
+    if (!shouldIncludeTemplateFile(relativePath, answers)) {
+      continue;
+    }
+
+    const sourcePath = path.join(templateRoot, relativePath);
+    const targetRelativePath = normalizeTargetPath(relativePath);
+    const targetFilePath = path.join(targetPath, targetRelativePath);
+    const templateContent = await readTextFile(sourcePath);
+    const renderedContent = renderTemplate(templateContent, answers);
+    console.log(`Creating file: ${renderedContent}`);
+
+    await writeTextFile(targetFilePath, renderedContent);
+    createdFiles.push(targetRelativePath);
   }
 
   return {
     targetPath,
-    files: files.map((file) => file.relativePath)
+    files: createdFiles
   };
+}
+
+function getTemplateRoot(directoryName: string): string {
+  return path.resolve(__dirname, "../../templates", directoryName);
+}
+
+function shouldIncludeTemplateFile(relativePath: string, answers: ScaffoldAnswers): boolean {
+  if (relativePath === "README.md") {
+    return answers.includeReadme;
+  }
+
+  if (relativePath === "_gitignore") {
+    return answers.includeGitignore;
+  }
+
+  return true;
+}
+
+function normalizeTargetPath(relativePath: string): string {
+  if (relativePath === "_gitignore") {
+    return ".gitignore";
+  }
+
+  return relativePath;
+}
+
+function renderTemplate(content: string, answers: ScaffoldAnswers): string {
+  return content.split(TEMPLATE_NAME_PLACEHOLDER).join(answers.projectName);
 }

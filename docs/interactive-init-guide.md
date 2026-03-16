@@ -38,7 +38,7 @@ node dist/index.js init
 
 - 项目名是什么
 - 输出目录是什么
-- 选择 TypeScript 还是 JavaScript
+- 选择哪个模板目录
 - 要不要 README
 - 要不要 `.gitignore`
 - 如果目录已存在且非空，要不要继续
@@ -51,7 +51,7 @@ node dist/index.js init
 
 ## 二、当前实现的文件分工
 
-这个功能主要分成三部分：
+这个功能主要分成四部分：
 
 ### 1. [src/commands/init.ts](/abs/path/C:/ts-cli/src/commands/init.ts)
 
@@ -86,11 +86,24 @@ node dist/index.js init
 
 也就是：
 
-- 根据答案决定生成哪些文件
-- 拼出每个文件的内容
-- 把文件写到目标目录
+- 根据模板名定位真实模板目录
+- 递归读取模板目录中的文件
+- 对少量占位符做替换
+- 把结果写到目标目录
 
 你可以把它理解成“模板工厂”。
+
+### 4. [src/templates/registry.ts](/abs/path/C:/ts-cli/src/templates/registry.ts)
+
+它负责“模板元数据”。
+
+也就是：
+
+- 当前有哪些模板
+- 模板在交互界面里怎么展示
+- 模板实际对应哪个目录
+
+这一步就是 Vite 风格“模板注册表”的最小版本。
 
 这种拆法的好处是非常清楚：
 
@@ -147,7 +160,7 @@ createInterface({ input, output })
 
 1. 问项目名
 2. 问输出目录
-3. 问模板类型
+3. 问模板
 4. 问是否生成 README
 5. 问是否生成 `.gitignore`
 
@@ -180,8 +193,9 @@ const c = await 问题3;
 这个函数会：
 
 1. 计算绝对路径
-2. 根据模板选项拼出文件列表
-3. 逐个写文件
+2. 从模板注册表找到模板目录
+3. 递归复制模板文件
+4. 替换少量占位符
 4. 返回生成结果
 
 到这里，交互阶段就结束了，进入的是普通文件生成逻辑。
@@ -259,35 +273,34 @@ const c = await 问题3;
 
 `scaffold.ts` 的核心不是“脚手架”，而是：
 
-`根据答案，拼出文件；然后把文件写出去。`
+`找到模板目录，把模板文件复制出去，再替换少量变量。`
 
 这个服务分成两个动作：
 
-### 1. 先决定要生成哪些文件
+### 1. 先决定复制哪个模板目录
 
 比如：
 
-- 一定生成 `package.json`
-- 一定生成入口文件
-- 选了 TypeScript 才生成 `tsconfig.json`
-- 选了 README 才生成 `README.md`
-- 选了 gitignore 才生成 `.gitignore`
+- `vanilla-ts` 对应 `templates/vanilla-ts/`
+- `vanilla-js` 对应 `templates/vanilla-js/`
+- 模板里的真实文件跟着目录一起维护
 
 这一步是“模板装配”。
 
-### 2. 再逐个写文件
+### 2. 再递归复制并替换少量变量
 
-它会遍历文件列表：
+它会遍历模板文件列表：
 
 ```ts
-for (const file of files) {
-  await writeTextFile(filePath, file.content);
+for (const relativePath of templateFiles) {
+  const content = await readTextFile(sourcePath);
+  await writeTextFile(targetPath, renderTemplate(content, answers));
 }
 ```
 
 这一步是“模板落盘”。
 
-所以脚手架本身并不复杂，复杂的往往只是模板数量和模板内容。
+所以脚手架本身并不复杂，复杂的往往只是模板数量、目录结构和少量变量替换。
 
 ## 六、这里用到的核心 Node API
 
@@ -379,16 +392,17 @@ path.resolve(process.cwd(), "demo-app")
 - 没有任何内容 -> 可以直接写
 - 有内容 -> 需要再确认
 
-### 6. `fs/promises.mkdir()` 和 `fs/promises.writeFile()`
+### 6. `fs/promises.mkdir()`、`fs/promises.readdir()` 和 `fs/promises.writeFile()`
 
 它们在 [src/utils/fs.ts](/abs/path/C:/ts-cli/src/utils/fs.ts) 里被封装过。
 
 这里的关键思想是：
 
 - 写文件前先确保父目录存在
+- 复制模板前先递归读取目录项
 - 然后再真正写文件
 
-这就是为什么脚手架能直接写出 `src/index.ts`，即使 `src/` 原本还不存在。
+这就是为什么脚手架能直接把模板目录里的文件复制出来，即使目标目录原本还不存在。
 
 ## 七、如果只为了学习，最小逻辑可以简化成什么样
 
@@ -400,11 +414,11 @@ path.resolve(process.cwd(), "demo-app")
 创建 readline
 
 问项目名
-问模板类型
+问模板
 问是否继续
 
-根据答案拼出文件内容
-写入文件
+找到模板目录
+复制模板文件
 
 关闭 readline
 ```
@@ -416,7 +430,7 @@ path.resolve(process.cwd(), "demo-app")
 ```ts
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 async function runInit() {
@@ -424,18 +438,19 @@ async function runInit() {
 
   try {
     const projectName = (await rl.question("项目名: ")).trim() || "demo-app";
-    const template = (await rl.question("模板类型（ts/js）: ")).trim() || "ts";
+    const template = (await rl.question("模板名（vanilla-ts/vanilla-js）: ")).trim() || "vanilla-ts";
 
     const targetDir = path.resolve(process.cwd(), projectName);
-    await mkdir(path.join(targetDir, "src"), { recursive: true });
+    const templateDir = path.resolve(process.cwd(), "templates", template);
+    const files = await readdir(templateDir);
 
-    const entryFile = template === "ts" ? "src/index.ts" : "src/index.js";
-    const entryContent =
-      template === "ts"
-        ? 'const name: string = "demo";\nconsole.log(name);\n'
-        : 'const name = "demo";\nconsole.log(name);\n';
+    await mkdir(targetDir, { recursive: true });
 
-    await writeFile(path.join(targetDir, entryFile), entryContent, "utf8");
+    for (const file of files) {
+      const sourcePath = path.join(templateDir, file);
+      const content = await readFile(sourcePath, "utf8");
+      await writeFile(path.join(targetDir, file), content.replaceAll("__PROJECT_NAME__", projectName), "utf8");
+    }
 
     console.log(`已生成到: ${targetDir}`);
   } finally {
@@ -447,7 +462,7 @@ async function runInit() {
 这版代码适合先建立两个认知：
 
 1. 多轮交互其实就是多次 `await rl.question(...)`
-2. 脚手架生成其实就是拼字符串再写文件
+2. 脚手架生成也可以是复制真实模板目录，再替换少量变量
 
 当你把这两个点看清楚后，再回头看当前项目的分层版实现，就会轻松很多。
 
@@ -467,6 +482,7 @@ async function runInit() {
 
 - 交互逻辑单独放在 `prompt.ts`
 - 模板逻辑单独放在 `scaffold.ts`
+- 模板元数据单独放在 `registry.ts`
 - 命令流程放在 `init.ts`
 
 这比“全塞一个文件”更适合你后续照着扩展出：
@@ -486,8 +502,8 @@ async function runInit() {
 2. 用 `readline.question()` 一轮轮收集答案
 3. 对输入做最基础的默认值和校验
 4. 根据前面答案决定是否追加问题
-5. 把最终答案交给单独的生成函数
-6. 生成函数只负责拼内容和写文件
+5. 把最终答案交给单独的模板复制函数
+6. 复制函数只负责找模板、复制文件、替换少量变量
 
 如果你能把这 6 步写出来，就已经具备实现一个教学版脚手架的能力了。
 
@@ -497,7 +513,8 @@ async function runInit() {
 
 1. 先看 [src/commands/init.ts](/abs/path/C:/ts-cli/src/commands/init.ts)
 2. 再看 [src/utils/prompt.ts](/abs/path/C:/ts-cli/src/utils/prompt.ts)
-3. 再看 [src/services/scaffold.ts](/abs/path/C:/ts-cli/src/services/scaffold.ts)
-4. 最后回看 [src/index.ts](/abs/path/C:/ts-cli/src/index.ts) 里的命令注册
+3. 再看 [src/templates/registry.ts](/abs/path/C:/ts-cli/src/templates/registry.ts)
+4. 再看 [src/services/scaffold.ts](/abs/path/C:/ts-cli/src/services/scaffold.ts)
+5. 最后回看 [src/index.ts](/abs/path/C:/ts-cli/src/index.ts) 里的命令注册
 
 这个顺序最容易把“流程”和“分层”同时看明白。

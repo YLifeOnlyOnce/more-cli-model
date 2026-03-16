@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "A TypeScript CLI learning example with guided docs.",
   "type": "commonjs",
+  "files": [
+    "dist",
+    "templates",
+    "README.md"
+  ],
   "bin": {
     "learn-cli": "dist/index.js"
   },
