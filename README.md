@@ -1,6 +1,6 @@
 # 各种类型的 cli 在 Typescript 的简易实现
 
-这是一个适合入门和拆解原理的 TypeScript CLI 项目。
+这是一个适合入门和拆解原理的 TypeScript CLI 项目，用于复习在各种类型场景下的 cli 构建方式。
 
 特意不依赖 `commander`、`yargs` 这类成熟框架，而是自己实现了一个最小命令解析器。既能学会如何做一个可用的 CLI，也能看见 CLI 的底层骨架到底是什么。
 
